@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">NIT-IbC_Twitter</string>
+    <string name="action_settings">Settings</string>
+    <string name="oAuthConsumerKey">H00DUFcrIISwgaA4BcvVNiRWW</string>
+    <string name="oAuthConsumerSecret">Sx5Ce8CuD0QzrGaZW4zmeuv2VBEIsRL3irMmFmXD3wskTgQHUT</string>
+    <string name="oAuthAccessToken">4763208625-Jr4eDe2MbH05FrYUAeDKPLSnZIMVFj33dGe8TvS</string>
+    <string name="oAuthAccessTokenSecret">N0h5rBSftcV0a6boXO82dIaipNRbzcykZB8Jil4Eo5ubQ</string>
+</resources>
