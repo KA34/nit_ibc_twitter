@@ -19,8 +19,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <meta-data android:name="com.google.android.backup.api_key"
-            android:value="AEdPqrEAAAAIkA0hr51cBZHdwmi4ri4RxECG03XjeJkwjlBNhw" />
 
         <service android:name=".StreamingService" />
         <service android:name=".InfoService" />

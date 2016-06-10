@@ -1,8 +1,6 @@
 package com.ka34.nit_ibc_twitter;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -12,11 +10,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Toast;
-
-import java.util.HashMap;
 import java.util.Map;
 
 public class MainActivity extends Activity {
@@ -46,15 +41,12 @@ public class MainActivity extends Activity {
         }
 */
 
-        String[] lines = new String[pref.PrefData.size()];
-        for (int i = 0; i < pref.PrefData.size(); i++) {
-            Map<String,String> tmpMap = pref.PrefData.get(i);
-            String date = tmpMap.get("date");
-            String type = tmpMap.get("type");
-            String term = tmpMap.get("term");
-            String cont = tmpMap.get("cont");
-            String cla = tmpMap.get("clas");
-            lines[i] = date + " " + term + "限 " + cla + " \n" + cont;
+        String[] lines = new String[account.AccountData.size()];
+        for (int i = 0; i < account.AccountData.size(); i++) {
+            Map<String,String> tmpMap = account.AccountData.get(i);
+            String id = tmpMap.get("id");
+            String clas = tmpMap.get("clas");
+            lines[i] = id + " " +clas;
         }
         lv = (ListView) findViewById(R.id.listView);
 
@@ -67,40 +59,36 @@ public class MainActivity extends Activity {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 ListView listView = (ListView) parent;
-                Map<String,String> tmpMap = pref.PrefData.get(position);
-                String date = tmpMap.get("date");
-                String type = tmpMap.get("type");
-                String term = tmpMap.get("term");
-                String cont = tmpMap.get("cont");
-                String cla = tmpMap.get("clas");
-                String item = date + " " + term + "限 " + cla + " \n" + cont;
+                Map<String,String> tmpMap = account.AccountData.get(position);
+                String aid = tmpMap.get("id");
+                String clas = tmpMap.get("clas");
+                String item = aid + " " +clas;
                 Toast.makeText(getApplicationContext(), item + " clicked",
                         Toast.LENGTH_LONG).show();
             }
         });
-        lv.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+/*        lv.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
                 ListView listView = (ListView) parent;
                 String item = (String) listView.getItemAtPosition(position);
-                pref.PrefData.remove(position);
-                pref.savaInstance(ApplicationController.getInstance().getApplicationContext());
-                String[] lines = new String[pref.PrefData.size()];
-                for (int i = 0; i < pref.PrefData.size(); i++) {
-                    Map<String,String> tmpMap = pref.PrefData.get(i);
-                    String date = tmpMap.get("date");
-                    String type = tmpMap.get("type");
-                    String term = tmpMap.get("term");
-                    String cont = tmpMap.get("cont");
-                    String cla = tmpMap.get("clas");
-                    lines[i] = date + " " + term + "限 " + cla + " \n" + cont;
+                account.AccountData.remove(position);
+                account.savaInstance(ApplicationController.getInstance().getApplicationContext());
+                String[] lines = new String[account.AccountData.size()];
+                for (int i = 0; i < account.AccountData.size(); i++) {
+                    Map<String,String> tmpMap = account.AccountData.get(i);
+                    String aid = tmpMap.get("id");
+                    String clas = tmpMap.get("clas");
+                    lines[i] = aid + " " +clas;
                 }
-                adapter.notifyDataSetChanged();
+                adapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_expandable_list_item_1, lines);
+
+//                adapter.notifyDataSetChanged();
                 lv.setAdapter(adapter);
                 return false;
             }
         });
-
+*/
         StreamingService st = new StreamingService();
         startService(new Intent(MainActivity.this, StreamingService.class));
 //        InfoParser parseTask = new InfoParser(getApplicationContext());
@@ -126,7 +114,20 @@ public class MainActivity extends Activity {
         LayoutInflater inflater = (LayoutInflater)this.getSystemService(LAYOUT_INFLATER_SERVICE);
         final View layout = inflater.inflate(R.layout.settings,(ViewGroup)findViewById(R.id.layout_root));
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        account = AccountData.getInstance(ApplicationController.getInstance().getApplicationContext());
+        String[] lines = new String[account.AccountData.size()];
+        for (int i = 0; i < account.AccountData.size(); i++) {
+            Map<String,String> tmpMap = account.AccountData.get(i);
+            String aid = tmpMap.get("id");
+            String clas = tmpMap.get("clas");
+            lines[i] = aid + " " +clas;
+        }
+        adapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_expandable_list_item_1, lines);
+
+//        adapter.notifyDataSetChanged();
+        lv.setAdapter(adapter);
+
+/*        AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Settings");
         builder.setView(layout);
         builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
@@ -157,7 +158,9 @@ public class MainActivity extends Activity {
 
         // 表示
         builder.create().show();
-        return super.onOptionsItemSelected(item);
+*/        return super.onOptionsItemSelected(item);
+
+
     }
 }
 

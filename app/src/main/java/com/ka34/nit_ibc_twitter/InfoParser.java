@@ -24,6 +24,8 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
     Preferences pref;
     AccountData account;
 
+    Boolean save;
+
     // インスタンス生成
     public InfoParser(Context context) {
         mContext = context;
@@ -54,11 +56,7 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
             Document document = Jsoup.connect(url[0]).get();
             Elements body = document.getElementsByClass("oshirase");
             ListData.infoData = body.toString();
-            Document document2 = Jsoup.connect("https://f65fec82d3baf4bbc4d2bab12233737fffd2033c-www.googledrive.com/host/0BwTonu4uzP9sfnBGQVFzYWFwelp1aDFEbXE3cEhQTDY3YWRJM1E0NlFSQnNldTJBUE5fRkU/").get();
-            Elements body2 = document2.getElementsByClass("information");
-            ListData.makeData = body2.toString();
-//                Log.d("html",document2.html());
-//            ParseInfo();
+
             ParseHTML();
             AllocateList(); //parseList:新規 matchList:維持 prefData:削除
             MakeTweetData();
@@ -74,18 +72,19 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
 
     @Override
     protected void onPostExecute(Integer result) {
-//        Log.i("a", "ParseComplete");
+        Log.d("a", "ParseComplete");
     }
 
     private void ParseHTML(){
         boolean todayFlag = false;
+        boolean breakFlag = false;
         String str = "";
         Document doc = Jsoup.parse(ListData.infoData);
         Elements ele = doc.getElementsByTag("tr");
         ListData.infoData = ele.toString();
         String[] trList = ListData.infoData.split("</tr>", 0);
         for (int i=0; i<trList.length; i++) {
-            if (todayFlag) { break; }
+            if (todayFlag) { breakFlag = true; }
             String[] tdList = trList[i].split("</td>",0);
             String regex = "(\\d{4}年\\d+月\\d+日\\（\\p{InCJKUnifiedIdeographs}\\）)";
             tdList[0] = extractMatchString(regex, tdList[0]);
@@ -119,6 +118,7 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
 
                 for (int k = 0; k <spList.length ; k++) {
                     ArrayList<String> tmpList = new ArrayList<>();
+//                        Log.d("a", spList[k]);
                     String[] brList = spList[k].split("<br>");
                     Pattern pbr = Pattern.compile("(^</span>)|(</span>$)");
                     Pattern pbr2 = Pattern.compile("</span>[●◎☆]");
@@ -155,17 +155,18 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                     String other = null;
 
                     for (int n = 1; n<brList.length; n++) {
-                        String type;
-                        if (brList[n].indexOf("☆")==0) {
-                            type = "変更";
-                        }else if(brList[n].indexOf("●")==0) {
-                            type = "休講";
-                        }else if(brList[n].indexOf("◎")==0){
-                            type = "補講";
-                        } else {
-                            type = "?";
-                        }
+
                         if(extractMatchString("^[●◎☆]\\S+\\s+(\\d|\\d([・，,－]\\d)*)限\\s",brList[n])!=null) {
+                            String type;
+                            if (brList[n].indexOf("☆")==0) {
+                                type = "変更";
+                            }else if(brList[n].indexOf("●")==0) {
+                                type = "休講";
+                            }else if(brList[n].indexOf("◎")==0){
+                                type = "補講";
+                            } else {
+                                type = "?";
+                            }
                             String compare = getCompare(brList[0],tdList[0]);
                             if (Integer.valueOf(compare) < Integer.valueOf(getToday())){todayFlag=true;}
                             String clas,term,cont;
@@ -186,16 +187,26 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                                     clas = mbar.replaceAll("の");
                                 }
                                 if(clas.matches("^[１２３４５][ＭＳＥＤＣ]")||clas.matches("^[１２３４５]年$")||clas.matches("^[１２]の[１２３４５]")||clas.matches("^[１２３４５]年留学生")) {
-                                    if (!DeleteSearch(brList[0],clas,term)) {
-                                        AddparseList(brList[0], type, clas, term, cont, compare);
-                                    }
-/*                                } else {
-                                    Log.d(brList[0], clas); 所属例外 */
+                                    AddparseList(brList[0], type, clas, term, cont, compare);
+
+//                                Log.d(brList[0], clas); 所属例外
                                 }
                             }
 
                         }else{
-                            other = other +"\n"+ brList[n];
+                            Pattern pp = Pattern.compile("[●◎☆]");
+                            Matcher mp = pp.matcher(brList[n-1]);
+                            if (mp.find()){
+                                Map<String,String> tmpMap = data.parseList.get(data.parseList.size() - 1);
+                                String date = tmpMap.get("date");
+                                String type = tmpMap.get("type");
+                                String clas = tmpMap.get("clas");
+                                String term = tmpMap.get("term");
+                                String cont = tmpMap.get("cont") + brList[n].trim();
+                                String compare = tmpMap.get("compare");
+                                data.parseList.remove(data.parseList.size() - 1);
+                                AddparseList(date,type,clas,term,cont,compare);
+                            }
                         }
                     }
 /*                    if (other!=null){
@@ -208,6 +219,7 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                     }
 */                }
             }
+            if (breakFlag) { break; }
         }
         //昨日以前を削除
         for (int i = 0; i < data.parseList.size(); i++) {
@@ -218,68 +230,22 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
             }
         }
     }
-    private void ParseInfo(){
-        Map<String,String> tmpMap;
-        data.parseList = new ArrayList<>();
-        String[] brList = ListData.makeData.split("</p>", 0);
-        for (int i = 1; i < brList.length-1; i++) {
-            brList[i] = brList[i].substring(6);
-            String[] dataList = brList[i].split(",", 0);
-            if (Integer.valueOf(getDate()) < Integer.valueOf(dataList[1])) {
-                tmpMap = new HashMap<>();
-                switch (dataList[0]) {
-                    case "delete":
-                        tmpMap.put("date", dataList[2]);
-                        tmpMap.put("clas", dataList[3]);
-                        tmpMap.put("term", dataList[3]);
-                        data.deleteList.add(tmpMap);
-                        break;
-                    case "remake":
-                        tmpMap.put("date", dataList[2]);
-                        tmpMap.put("clas", dataList[4]);
-                        tmpMap.put("term", dataList[5]);
-                        data.deleteList.add(tmpMap);
-                        tmpMap = new HashMap<>();
-                        tmpMap.put("compare", dataList[1]);
-                        tmpMap.put("date", dataList[2]);
-                        tmpMap.put("type", dataList[3]);
-                        tmpMap.put("clas", dataList[4]);
-                        tmpMap.put("term", dataList[5]);
-                        tmpMap.put("cont", dataList[6]);
-                        data.parseList.add(tmpMap);
-                        break;
-                    case "new":
-                        if (dataList[3].equals("other")) {
-                            tmpMap.put("compare", dataList[1]);
-                            tmpMap.put("date", dataList[2]);
-                            tmpMap.put("type", dataList[3]);
-                            tmpMap.put("cont", dataList[4]);
-                            data.parseList.add(tmpMap);
-                            break;
-                        } else {
-                            tmpMap.put("compare", dataList[1]);
-                            tmpMap.put("date", dataList[2]);
-                            tmpMap.put("type", dataList[3]);
-                            tmpMap.put("clas", dataList[4]);
-                            tmpMap.put("term", dataList[5]);
-                            tmpMap.put("cont", dataList[6]);
-                            data.parseList.add(tmpMap);
-                            break;
-                        }
-                }
-            }
-        }
-    }
+
     private void AllocateList(){
-        pref = Preferences.getInstance(mContext);
+        pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+        save = false;
+        Log.v("size", String.valueOf(data.parseList.size()));
         for (int i = 0; i < data.parseList.size(); i++) {
+//            Log.d("a", String.valueOf(data.parseList.get(i)));
             Map<String, String> parseMap = data.parseList.get(i);
             if(pref.PrefData != null) {
                 for (int j = 0; j < pref.PrefData.size(); j++) {
                     Map<String, String> prefMap = pref.PrefData.get(j);
+//                    Log.d("compare", prefMap.get("compare") + "  " + getToday());
                     if (Integer.valueOf(prefMap.get("compare")) < Integer.valueOf(getToday())) {
                         pref.PrefData.remove(j);
                         j--;
+                        save = true;
                     } else {
                         if (parseMap.get("date").equals(prefMap.get("date"))
                                 && parseMap.get("clas").equals(prefMap.get("clas"))
@@ -299,11 +265,106 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                 }
             }
         }
+
+        data.deleteList = new ArrayList<>();
+        data.deleteList = pref.PrefData;
         pref.PrefData = data.matchList;
-        for (int i = 0; i < data.parseList.size(); i++) {
-            Log.d("Allocate", String.valueOf(data.parseList.get(i)));
+
+        if (data.parseList.size() != 0 || data.deleteList.size() != 0){
+            Calendar cal = Calendar.getInstance();
+            String month, day, hour, min, sec;
+
+            month = String.valueOf(cal.get(Calendar.MONTH)+1);// 0 - 11
+            day = String.valueOf(cal.get(Calendar.DAY_OF_MONTH));
+
+            if(cal.get(Calendar.HOUR_OF_DAY) < 10){
+                hour = "0" + String.valueOf(cal.get(Calendar.HOUR_OF_DAY));
+            } else {
+                hour = String.valueOf(cal.get(Calendar.HOUR_OF_DAY));
+            }
+            if (cal.get(Calendar.MINUTE) < 10){
+                min = "0" + String.valueOf(cal.get(Calendar.MINUTE));
+            } else {
+                min = String.valueOf(cal.get(Calendar.MINUTE));
+            }
+            if (cal.get(Calendar.SECOND) < 10){
+                sec = "0" + String.valueOf(cal.get(Calendar.SECOND));
+            } else {
+                sec = String.valueOf(cal.get(Calendar.SECOND));
+            }
+
+            if (data.parseList.size() != 0) {
+                String message = month + "/" + day + " " + hour + ":" + min + ":" + sec + "\n" + "休講情報の追加を検知しました";
+                int count = message.length();
+                int limit = 140;
+
+                for (int i = 0; i < data.parseList.size(); i++) {
+                    Log.d("Allocate", String.valueOf(data.parseList.get(i)));
+                    Map<String, String> tmpMap = data.parseList.get(i);
+                    String date = tmpMap.get("date");
+                    String type = tmpMap.get("type");
+                    String term = tmpMap.get("term");
+                    String cont = tmpMap.get("cont");
+                    String cla = tmpMap.get("clas");
+                    String line =  "\n【" + type + "】" + date + " " + term + "限 " + cla + " ←New!\n" + cont;
+                    if (count + line.length() <= limit) {
+                        message += line;
+                        count += line.length();
+                    } else {
+                        Log.d("add", String.valueOf(count));
+                        pref.TweetQueue.add(message);
+                        if (i < data.parseList.size()) {
+                            message = month + "/" + day + " " + hour + ":" + min + ":" + sec + " 追加続き";
+                            count = message.length();
+                            message += line;
+                            count += line.length();
+                        } else {
+                            message = "";
+                        }
+                    }
+                }
+                if (!message.isEmpty()) {
+                    pref.TweetQueue.add(message);
+                }
+            }
+            if (data.deleteList.size() != 0) {
+                String message = month + "/" + day + " " + hour + ":" + min + ":" + sec + "\n" + "休講情報の削除を検知しました";
+                int count = message.length();
+                int limit = 140;
+
+                for (int i = 0; i < data.deleteList.size(); i++) {
+                    Log.d("Allocate", String.valueOf(data.deleteList.get(i)));
+                    Map<String, String> tmpMap = data.deleteList.get(i);
+                    String date = tmpMap.get("date");
+                    String type = tmpMap.get("type");
+                    String term = tmpMap.get("term");
+                    String cont = tmpMap.get("cont");
+                    String cla = tmpMap.get("clas");
+                    String line =  "\n【" + type + "】" + date + " " + term + "限 " + cla + " ←Deleted!\n" + cont;
+                    if (count + line.length() <= limit) {
+                        message += line;
+                        count += line.length();
+                    } else {
+                        Log.d("add", String.valueOf(count));
+                        pref.TweetQueue.add(message);
+                        if (i < data.deleteList.size()) {
+                            message = month + "/" + day + " " + hour + ":" + min + ":" + sec + " 削除続き";
+                            count = message.length();
+                            message += line;
+                            count += line.length();
+                        } else {
+                            message = "";
+                        }
+                    }
+                }
+                if (!message.isEmpty()) {
+                    pref.TweetQueue.add(message);
+                }
+            }
+            save = true;
         }
-    } //parseList:新規 matchList:維持 prefData:完成
+
+    } //parseList:新規 deleteList:消えた prefData:完成
 
     public void MakeTweetData(){
         String[] dep = new String[]{"M","S","E","D","C"};
@@ -312,8 +373,8 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                 for (int j = 0; j < 5; j++) {
                     for (int k = 1; k <= 5; k++) {
                         List<Map<String,String>> newfilterList = data.GetfilterList(String.valueOf(i), dep[j], String.valueOf(k));
-                        if (newfilterList.size() != 0){
-                            pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                        List<Map<String,String>> newdeletefilterList = data.GetdeletefilterList(String.valueOf(i), dep[j], String.valueOf(k));
+                        if (newfilterList.size() != 0 || newdeletefilterList.size() != 0){
                             List<Map<String,String>> filterList = pref.GetfilterList(String.valueOf(i), dep[j], String.valueOf(k));
                             List<String> tmpList = new ArrayList<>();
 //                        Log.d("a","pref");
@@ -328,16 +389,32 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                                     String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " \n" + cont;
                                     tmpList.add(line);
                                 }
+                                tmpList.add("\n");
+                            }if (newfilterList.size() != 0) {
+                                for (int l = 0; l < newfilterList.size(); l++) {
+                                    Log.d("MakeTweetData", String.valueOf(i) + String.valueOf(j) + String.valueOf(k) + String.valueOf(newfilterList.get(l)));
+                                    Map<String, String> tmpMap = newfilterList.get(l);
+                                    String date = tmpMap.get("date");
+                                    String type = tmpMap.get("type");
+                                    String term = tmpMap.get("term");
+                                    String cont = tmpMap.get("cont");
+                                    String cla = tmpMap.get("clas");
+                                    String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " ←New!\n" + cont;
+                                    tmpList.add(line);
+                                }
+                                if (newdeletefilterList.size() != 0){
+                                    tmpList.add("\n");
+                                }
                             }
-                            for (int l = 0; l < newfilterList.size(); l++) {
-                                Log.d("MakeTweetData", String.valueOf(i) + String.valueOf(j) + String.valueOf(k) + String.valueOf(newfilterList.get(l)));
-                                Map<String, String> tmpMap = newfilterList.get(l);
+                            for (int l = 0; l < newdeletefilterList.size(); l++) {
+                                Log.d("MakeTweetData", String.valueOf(i) + String.valueOf(j) + String.valueOf(k) + String.valueOf(newdeletefilterList.get(l)));
+                                Map<String, String> tmpMap = newdeletefilterList.get(l);
                                 String date = tmpMap.get("date");
                                 String type = tmpMap.get("type");
                                 String term = tmpMap.get("term");
                                 String cont = tmpMap.get("cont");
                                 String cla = tmpMap.get("clas");
-                                String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " ←New!\n" + cont;
+                                String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " ←削除されました\n" + cont;
                                 tmpList.add(line);
                             }
                             if (i < 3){
@@ -355,13 +432,10 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                 }
             }
             pref.PrefData.addAll(data.parseList);
-            pref.savaInstance(mContext);
         }
     }
     public void MakeTweet() {
         account = AccountData.getInstance(ApplicationController.getInstance().getApplicationContext());
-        pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
-        Boolean save = false;
         for (int i = 0; i < account.AccountData.size(); i++) {
             Map<String,String> tmpMap = account.AccountData.get(i);
             if (data.TweetData.get(tmpMap.get("clas")) != null){
@@ -374,7 +448,7 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
                 }
                 assert user != null;
                 String username = user.getScreenName();
-                String message = "休講・授業変更情報が追加されました.";
+                String message = "休講・授業変更情報が更新されました.";
                 int count = username.length() + message.length() + 2;
 
                 Boolean dm = tmpMap.containsKey("dm");
@@ -449,17 +523,6 @@ public class InfoParser extends AsyncTask<String, Void, Integer>  {
             }
         }
         return sb.toString();
-    }
-    private boolean DeleteSearch(String date, String clas, String term){
-        for (int q = 0; q < data.deleteList.size(); q++) {
-            Map<String, String> tmpdelMap = data.deleteList.get(q);
-            Log.d("", tmpdelMap.get("date") + Normalizer.normalize(date, Normalizer.Form.NFKC) + tmpdelMap.get("clas") + Normalizer.normalize(clas, Normalizer.Form.NFKC) + tmpdelMap.get("term") + Normalizer.normalize(term, Normalizer.Form.NFKC));
-                if (tmpdelMap.get("date").equals(date) && tmpdelMap.get("clas").equals(clas) && tmpdelMap.get("term").equals(term)) {
-                data.deleteList.remove(q);
-                return true;
-            }
-        }
-        return false;
     }
     private String getCompare(String brlist, String tdlist){
         Pattern pmonth = Pattern.compile("\\d\\d月");

@@ -42,7 +42,7 @@ public class InfoService extends Service {
 
 
             }
-        }, 0, 1000*60*10); //10分ごとに休講情報確認
+        }, 0, 1000*60); //1分ごとに休講情報確認
 
         return super.onStartCommand(intent, flags, startId);
     }

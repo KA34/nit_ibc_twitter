@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 import java.text.Normalizer;
+import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -126,7 +127,7 @@ public class StreamingService extends Service {
                 TweetContains(id, tweet, userid, username, false);
             }
 
-            //取得漏れ時の対策RT
+            //取得漏れ時の対策手動RT
             if(userid == 4763208625.0 && text.startsWith("RT") && text.contains(myid)){
                 int index = text.indexOf(myid);
                 String tweet = text.substring(0,index) + text.substring(index+myid.length());
@@ -139,6 +140,7 @@ public class StreamingService extends Service {
                 }
                 TweetContains(id, tweet, userid, username, false);
             }
+
         }
 
         public void onDeletionNotice(StatusDeletionNotice sdn) {
@@ -164,7 +166,7 @@ public class StreamingService extends Service {
         //所属の形式を変更 (4D→4年D科 2S3→2年S科3組)
         private String MakeClass(String aff){
             String grade = aff.substring(0, 1);
-            String dep = aff.substring(1,2);
+            String dep = aff.substring(1, 2);
             if (aff.length() == 2){
                 return grade + "年" + dep + "科";
             } else {
@@ -195,6 +197,7 @@ public class StreamingService extends Service {
         private void TweetContains(long id, String tweet, long userid, String username, boolean dm){
             Preferences pref;
             AccountData account;
+            AddClasData addclas;
             Map<String,String> tmpMap = new HashMap<>();
 
             if (tweet.contains("登録")){
@@ -222,6 +225,7 @@ public class StreamingService extends Service {
                         } else {
                             Reply(username, MakeClass(tweet) + "で登録されました.所属変更は,「登録」と所属(例:4D,1S2)を含めて,\n情報請求は「情報」を含めて,\n登録解除は「解除」を含めてリプライして下さい。", id, false);
                         }
+                        jouhou(username, id, dm, tweet);
 
                     } else {
                         account = AccountData.getInstance(ApplicationController.getInstance().getApplicationContext());
@@ -232,12 +236,12 @@ public class StreamingService extends Service {
                                 tmpMap = new HashMap<>();
                                 tmpMap.put("id", String.valueOf(userid));
                                 tmpMap.put("clas", tweet);
-                                tmpMap.put("dm","");
+                                tmpMap.put("dm", "");
                                 account.AccountData.set(result, tmpMap);
                                 account.savaInstance(ApplicationController.getInstance().getApplicationContext());
 
                                 //変更完了dm送信
-                                Reply(username,MakeClass(aff) + "(リプライ)から" + MakeClass(tweet)+"(ダイレクトメッセージ) に登録情報が更新されました.", id, true);
+                                Reply(username, MakeClass(aff) + "(リプライ)から" + MakeClass(tweet) + "(ダイレクトメッセージ) に登録情報が更新されました.", id, true);
 
                             } else {
                                 String aff = tmpMap.get("clas");
@@ -251,6 +255,7 @@ public class StreamingService extends Service {
                                 Reply(username,MakeClass(aff) + "(ダイレクトメッセージ)から" + MakeClass(tweet)+"(リプライ)に登録情報が更新されました.", id, false);
 
                             }
+                            jouhou(username, id, dm, tweet);
                         } else {
                             if (tmpMap.get("clas").equals(tweet)){
                                 //登録済み
@@ -269,7 +274,7 @@ public class StreamingService extends Service {
 
                                 //変更完了Tweet
                                 Reply(username,MakeClass(aff) + "から" + MakeClass(tweet)+"に登録情報が更新されました.", id, dm);
-
+                                jouhou(username, id, dm, tweet);
                             }
                         }
                     }
@@ -288,54 +293,9 @@ public class StreamingService extends Service {
                     //既存ユーザ
                     tmpMap = account.AccountData.get(result);
                     String aff = tmpMap.get("clas");
-                    String grade = aff.substring(0, 1);
-                    String dep = aff.substring(1,2);
-                    String clas;
-                    if (aff.length() == 2){
-                        clas = null;
-                    } else {
-                        clas = aff.substring(2,3);
-                    }
-                    pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
-                    List<Map<String,String>> filterList = pref.GetfilterList(grade, dep, clas);
-                    if (filterList.size() == 0){
-                        Reply(username, "明日以降に" + aff + "で掲載されている休講・授業変更等の情報はありません.", id, dm);
-                    } else {
-                        int count = username.length() + 2;
-                        int limit;
-                        if (dm){
-                            limit = 10000;
-                        } else {
-                            limit = 140;
-                        }
-                        String message = "現在" + aff + "で掲載されている情報は" + filterList.size() + "件です.";
-                        for (int i = 0; i < filterList.size(); i++) {
-                            tmpMap = filterList.get(i);
-                            String date = tmpMap.get("date");
-                            String type = tmpMap.get("type");
-                            String term = tmpMap.get("term");
-                            String cont = tmpMap.get("cont");
-                            String cla = tmpMap.get("clas");
-                            String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " \n" + cont;
-                            if (count + line.length() <= limit) {
-                                message += line;
-                                count += line.length();
-                            } else {
-                                Reply(username, message, id, dm);
-                                if (i < filterList.size()){
-                                    message = "続き";
-                                    count = username.length() + message.length() + 2;
-                                    message += line;
-                                    count += line.length();
-                                } else {
-                                    message = "";
-                                }
-                            }
-                        }
-                        if (!message.isEmpty()) {
-                            Reply(username, message, id, dm);
-                        }
-                    }
+
+                    jouhou(username, id, dm, aff);
+
                 }
             } else if (tweet.contains("解除")){
                 //登録解除
@@ -354,6 +314,46 @@ public class StreamingService extends Service {
                 }
             } else if(tweet.contains("上上下下左右左右BA")){
                     Reply(username, "イキスギィ！ｲｸｲｸｲｸ(≧Д≦)ンアッー！", id, dm);
+            } else if(tweet.contains("全データ")) {
+                pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                if (pref.PrefData.size() == 0){
+                    Reply(username, "明日以降に掲載されている休講・授業変更等の情報はありません.", id, dm);
+                } else {
+                    int limit;
+                    if (dm) {
+                        limit = 10000;
+                    } else {
+                        limit = 140;
+                    }
+                    String message = "現在掲載されている情報は" + pref.PrefData.size() + "件です.";
+                    int count = username.length() + message.length() + 2;
+                    for (int i = 0; i < pref.PrefData.size(); i++) {
+                        tmpMap = pref.PrefData.get(i);
+                        String date = tmpMap.get("date");
+                        String type = tmpMap.get("type");
+                        String term = tmpMap.get("term");
+                        String cont = tmpMap.get("cont");
+                        String cla = tmpMap.get("clas");
+                        String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " \n" + cont;
+                        if (count + line.length() <= limit) {
+                            message += line;
+                            count += line.length();
+                        } else {
+                            Reply(username, message, id, dm);
+                            if (i < pref.PrefData.size()) {
+                                message = "続き";
+                                count = username.length() + message.length() + 2;
+                                message += line;
+                                count += line.length();
+                            } else {
+                                message = "";
+                            }
+                        }
+                    }
+                    if (!message.isEmpty()) {
+                        Reply(username, message, id, dm);
+                    }
+                }
             } else {
                 if (dm){
                     Reply(username, "メッセージを認識出来ませんでした.\nユーザー登録・変更は,「登録」と所属(例:4D,1S2)を含めて,\n情報請求は「情報」を含めて,\n登録解除は「解除」を含めて送信して下さい.", id, true);
@@ -362,6 +362,66 @@ public class StreamingService extends Service {
 
                 }
             }
+        }
+
+        private void jouhou(String username, long id, boolean dm, String aff){
+            String grade = aff.substring(0, 1);
+            String dep = aff.substring(1,2);
+            String clas;
+            if (aff.length() == 2){
+                clas = null;
+            } else {
+                clas = aff.substring(2,3);
+            }
+            Preferences pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+            List<Map<String,String>> filterList = pref.GetfilterList(grade, dep, clas);
+            if (filterList.size() == 0){
+                if (clas != null){
+                    Reply(username, "明日以降に" + grade + "の" + clas + ", " + grade + "年" + dep + "科で掲載されている休講・授業変更等の情報はありません.", id, dm);
+                } else {
+                    Reply(username, "明日以降に" + grade + "年" + dep + "科で掲載されている休講・授業変更等の情報はありません.", id, dm);
+                }
+            } else {
+
+                int limit;
+                if (dm){
+                    limit = 10000;
+                } else {
+                    limit = 140;
+                }
+                String message = "現在" + aff + "で掲載されている情報は" + filterList.size() + "件です.";
+                int count = username.length() + message.length() + 2;
+                Map<String,String> tmpMap;
+                for (int i = 0; i < filterList.size(); i++) {
+                    tmpMap = filterList.get(i);
+                    String date = tmpMap.get("date");
+                    String type = tmpMap.get("type");
+                    String term = tmpMap.get("term");
+                    String cont = tmpMap.get("cont");
+                    String cla = tmpMap.get("clas");
+                    String line = "\n【" + type + "】" + date + " " + term + "限 " + cla + " \n" + cont;
+                    if (count + line.length() <= limit) {
+                        message += line;
+                        count += line.length();
+                    } else {
+                        Reply(username, message, id, dm);
+                        Log.d("reply", "limit="+limit+"\n"+message);
+                        if (i < filterList.size()){
+                            message = "続き";
+                            count = username.length() + message.length() + 2;
+                            message += line;
+                            count += line.length();
+                        } else {
+                            message = "";
+                        }
+                    }
+                }
+                if (!message.isEmpty()) {
+                    Reply(username, message, id, dm);
+                    Log.d("reply2", "limit="+limit+"\n"+message);
+                }
+            }
+
         }
 
         @Override
@@ -407,6 +467,87 @@ public class StreamingService extends Service {
 
             if (userid != 4763208625.0){
                 TweetContains(id, text, userid, username, true);
+            } else {
+                if(text.contains("一斉配信")){
+                    AccountData account;
+                    Preferences pref;
+                    account = AccountData.getInstance(ApplicationController.getInstance().getApplicationContext());
+                    pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                    Map<String,String> tmpMap;
+                    text = text.substring(6-1);
+                    for (int i = 0; i < account.AccountData.size(); i++) {
+                        String mes = text;
+                        tmpMap = account.AccountData.get(i);
+                        User user = null;
+                        try {
+                            user = Tweet.twitter.showUser(Long.valueOf(tmpMap.get("id")));
+                        } catch (TwitterException e) {
+                            e.printStackTrace();
+                        }
+                        assert user != null;
+                        String name = user.getScreenName();
+
+                        int count = name.length() + 2;
+
+                        Boolean dm = tmpMap.containsKey("dm");
+
+                        int limit;
+                        if (dm){
+                            limit = 10000;
+                        } else {
+                            limit = 140;
+                        }
+
+                        while(count + mes.length() >= limit){
+                            pref.TweetQueue.add("@" + name + " " + mes.substring(0,limit-count));
+                            mes = mes.substring(limit-count);
+                        }
+
+                        if (!mes.isEmpty()) {
+                            if (dm){
+                                pref.DMQueue.add(new String[]{name, mes});
+                            } else {
+                                pref.TweetQueue.add("@" + name + " " + mes);
+                            }
+                        }
+                    }
+                    pref.savaInstance(ApplicationController.getInstance().getApplicationContext());
+                }
+                if (text.contains("キュー確認")){
+                    Preferences pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                    String mes = "";
+                    if (pref.TweetQueue.peek() != null){
+                        mes += "Tweet: " + pref.TweetQueue.size() + "件";
+                        while (pref.TweetQueue.peek() != null) {
+                            mes += "\n" + pref.TweetQueue.poll();
+                        }
+
+                    }
+                    if (pref.DMQueue.peek() != null){
+                        if (!mes.isEmpty()){
+                            mes += "\n\n";
+                        }
+                        mes += "DM: " + pref.DMQueue.size() + "件";
+                        while (pref.DMQueue.peek() != null){
+                            mes += "\n" + pref.DMQueue.peek()[0] + ":" + pref.DMQueue.poll()[1];
+                        }
+                    }
+                    if (!mes.isEmpty()){
+                        pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                        pref.DMQueue.add(new String[]{username, mes});
+                        pref.savaInstance(ApplicationController.getInstance().getApplicationContext());
+                    } else {
+                        pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                        pref.DMQueue.add(new String[]{username, "キュー無し"});
+                        pref.savaInstance(ApplicationController.getInstance().getApplicationContext());
+                    }
+                }
+                if (text.contains("キュー削除")){
+                    Preferences pref = Preferences.getInstance(ApplicationController.getInstance().getApplicationContext());
+                    pref.TweetQueue = new ArrayDeque<>();
+                    pref.DMQueue.add(new String[]{username, "削除成功"});
+                    pref.savaInstance(ApplicationController.getInstance().getApplicationContext());
+                }
             }
         }
 
